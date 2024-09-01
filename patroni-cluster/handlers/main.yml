@@ -1,0 +1,6 @@
+---
+- name: Restart Patroni service
+  systemd:
+    name: patroni.service
+    state: restarted
+  become: yes

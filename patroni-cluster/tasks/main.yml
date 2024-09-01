@@ -1,0 +1,107 @@
+---
+- name: Install PostgreSQL
+  apt:
+    name:
+      - postgresql
+      - postgresql-contrib
+    state: present
+  become: true
+
+- name: Stop PostgreSQL service
+  systemd:
+    name: postgresql
+    state: stopped
+  become: true
+
+- name: Disable PostgreSQL service
+  systemd:
+    name: postgresql
+    enabled: no
+  become: true
+
+- name: Install Patroni dependencies
+  apt:
+    name:
+      - python3-pip
+      - python3-dev
+      - libpq-dev
+    state: present
+  become: true
+
+- name: Upgrade pip and install Patroni
+  shell: |
+    pip3 install --upgrade pip
+    pip install patroni python-etcd psycopg2
+  become: true
+
+- name: Create Patroni configuration file
+  template:
+    src: patroni.yml.j2
+    dest: /etc/patroni.yml
+  become: true
+
+- name: Create Patroni systemd service file
+  copy:
+    content: |
+      [Unit]
+      Description="patroni service"
+      After=syslog.target network.target
+
+      [Service]
+      Restart=no
+      Type=simple
+      ExecStart=/usr/local/bin/patroni /etc/patroni.yml
+      ExecReload=/bin/kill -s HUP $MAINPID
+      KillMode=process
+      TimeoutSec=30
+      User=postgres
+      Group=postgres
+
+      [Install]
+      WantedBy=multi-user.target
+    dest: /usr/lib/systemd/system/patroni.service
+  become: true
+
+- name: Allow ports 5432 and 8008 through the firewall
+  ufw:
+    rule: allow
+    port: "{{ item }}"
+    proto: tcp
+  loop:
+    - 5432
+    - 8008
+  become: true
+
+- name: Enable Patroni service
+  systemd:
+    name: patroni.service
+    enabled: true
+  become: true
+
+- name: Start Patroni service
+  systemd:
+    name: patroni.service
+    state: started
+  become: true
+
+- name: Check Patroni service logs
+  shell: journalctl -u patroni.service -f
+  become: true
+  async: 60
+  poll: 0
+
+- name: Get Patroni cluster members
+  shell: sudo -u postgres patronictl -c /etc/patroni.yml list
+  become: true
+
+- name: Create test table on master
+  shell: |
+    psql -U postgres -c "create table mydata(key text, value text);"
+    psql -U postgres -c "insert into mydata values('foo', 'bar');"
+  when: inventory_hostname == "patroni-master"
+  become: true
+
+- name: Query test data on worker
+  shell: psql -U postgres -c "select * from mydata;"
+  when: inventory_hostname == "patroni-worker"
+  become: true
