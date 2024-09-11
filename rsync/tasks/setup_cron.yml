@@ -1,0 +1,57 @@
+---
+# set_permissions.yml
+- name: Ensure correct permissions on rsync source directory
+  ansible.builtin.file:
+    path: "{{ rsync_source_dir }}"
+    state: directory
+    owner: "{{ rsync_source_dir_owner }}"
+    group: "{{ rsync_source_dir_group }}"
+    mode: "{{ rsync_source_dir_mode }}"
+  become: true
+  when: inventory_hostname != groups['worker'][0]
+
+- name: Ensure correct permissions on rsync destination directory
+  ansible.builtin.file:
+    path: "{{ rsync_dest_dir }}"
+    state: directory
+    owner: "{{ rsync_dest_dir_owner }}"
+    group: "{{ rsync_dest_dir_group }}"
+    mode: "{{ rsync_dest_dir_mode }}"
+  become: true
+  when: inventory_hostname != groups['master1'][0]
+
+- name: Add Rsync cron job for workers
+  ansible.builtin.cron:
+    name: "Rsync cron job"
+    state: present
+    minute: "{{ rsync_cron_schedule.split()[0] }}"
+    hour: "{{ rsync_cron_schedule.split()[1] }}"
+    day: "{{ rsync_cron_schedule.split()[2] }}"
+    month: "{{ rsync_cron_schedule.split()[3] }}"
+    weekday: "{{ rsync_cron_schedule.split()[4] }}"
+    job: "rsync {{ rsync_options }} -e 'ssh -i {{ rsync_ssh_key_file }}' {{ rsync_user }}@{{ groups['master1'][0] }}:{{ rsync_source_dir }} {{ rsync_dest_dir }} > /var/log/rsync.log 2>&1"
+  when: inventory_hostname != groups['master1'][0]
+
+- name: Add Cleaning cron job for workers every 3 months
+  ansible.builtin.cron:
+    name: "Cleaning cron job for workers"
+    state: present
+    minute: "{{ cleaning_cron_schedule_workers.split()[0] }}"
+    hour: "{{ cleaning_cron_schedule_workers.split()[1] }}"
+    day: "{{ cleaning_cron_schedule_workers.split()[2] }}"
+    month: "{{ cleaning_cron_schedule_workers.split()[3] }}"
+    weekday: "{{ cleaning_cron_schedule_workers.split()[4] }}"
+    job: "rm -f {{ rsync_source_dir }}/* > /var/log/cleaning.log 2>&1"
+  when: inventory_hostname != groups['master1'][0]
+
+- name: Add Cleaning cron job for master every 6 months
+  ansible.builtin.cron:
+    name: "Cleaning cron job for master"
+    state: present
+    minute: "{{ cleaning_cron_schedule_master.split()[0] }}"
+    hour: "{{ cleaning_cron_schedule_master.split()[1] }}"
+    day: "{{ cleaning_cron_schedule_master.split()[2] }}"
+    month: "{{ cleaning_cron_schedule_master.split()[3] }}"
+    weekday: "{{ cleaning_cron_schedule_master.split()[4] }}"
+    job: "ls -l {{ rsync_dest_dir }} | grep br | awk '{print $9}' | while read line; do rm -f {{ rsync_dest_dir }}/$line/*; done > /var/log/cleaning.log 2>&1"
+  when: inventory_hostname == groups['master1'][0]

@@ -1,0 +1,11 @@
+[master1]
+44.208.35.103 ansible_user=ubuntu ansible_ssh_private_key_file=/home/marwan/Test-env/test.pem
+
+[worker]
+18.212.98.103 ansible_user=ubuntu ansible_ssh_private_key_file=/home/marwan/Test-env/test.pem
+54.196.15.84  ansible_user=ubuntu ansible_ssh_private_key_file=/home/marwan/Test-env/test.pem  
+
+
+[all:vars]
+ansible_python_interpreter=/usr/bin/python3
+

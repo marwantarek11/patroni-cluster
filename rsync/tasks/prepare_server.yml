@@ -1,0 +1,25 @@
+---
+- name: Create rsync user with nologin shell
+  ansible.builtin.user:
+    name: "{{ rsync_user }}"
+    shell: /sbin/nologin
+    create_home: true
+  become: true
+
+- name: Create .ssh directory for rsync user
+  ansible.builtin.file:
+    path: "/home/{{ rsync_user }}/.ssh"
+    state: directory
+    owner: "{{ rsync_user }}"
+    group: "{{ rsync_user }}"
+    mode: '0700'
+  become: true
+
+- name: Allow rsync_user to use rsync with sudo without a password
+  ansible.builtin.lineinfile:
+    path: /etc/sudoers.d/rsync_user
+    create: true
+    mode: '0440'
+    line: "{{ rsync_user }} ALL=(root) NOPASSWD: /usr/bin/rsync"
+  become: true
+

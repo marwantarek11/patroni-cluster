@@ -1,0 +1,5 @@
+- name: Setup rsync
+  hosts: master1,worker
+  become: true
+  roles:
+    - role: rsync
